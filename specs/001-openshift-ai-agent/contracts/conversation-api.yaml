@@ -1,0 +1,673 @@
+openapi: 3.0.3
+info:
+  title: OpenShift AI Conversational Agent API
+  description: |
+    REST API for conversational interaction with OpenShift AI platform.
+
+    This API enables users to manage OpenShift AI resources through natural
+    language commands. The agent translates user queries into OpenShift AI
+    operations and maintains conversation context across multiple turns.
+
+    **Authentication**: OpenShift OAuth Bearer token required in Authorization header.
+  version: 1.0.0
+  contact:
+    name: OpenShift AI Agent Team
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: https://openshift-ai-agent.apps.cluster.example.com/v1
+    description: Production OpenShift cluster
+  - url: http://localhost:8080/v1
+    description: Local development server
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Conversation
+    description: Conversation management and message exchange
+  - name: Health
+    description: Service health and readiness checks
+
+paths:
+  /query:
+    post:
+      summary: Send query to conversational agent
+      description: |
+        Submit a natural language query or command to the agent. The agent parses
+        the intent, executes OpenShift AI operations, and returns human-readable results.
+
+        This endpoint maintains conversation context automatically using the session_id.
+      operationId: submitQuery
+      tags:
+        - Conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+            examples:
+              deployModel:
+                summary: Deploy a model
+                value:
+                  session_id: "550e8400-e29b-41d4-a716-446655440000"
+                  query: "Deploy my fraud-detection model with 3 replicas"
+              checkStatus:
+                summary: Check model status
+                value:
+                  session_id: "550e8400-e29b-41d4-a716-446655440000"
+                  query: "What's the status of my recommendation-engine?"
+      responses:
+        '200':
+          description: Successful query response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+              examples:
+                success:
+                  summary: Successful model deployment
+                  value:
+                    session_id: "550e8400-e29b-41d4-a716-446655440000"
+                    message_id: "123e4567-e89b-12d3-a456-426614174000"
+                    response: |
+                      I've deployed your fraud-detection model with 3 replicas.
+
+                      Status: Deploying (this may take 2-3 minutes)
+                      Namespace: data-science-project
+                      Replicas: 3
+
+                      I'll notify you when the deployment is complete.
+                    operations_performed:
+                      - operation_type: "create"
+                        resource_type: "inference_service"
+                        resource_name: "fraud-detection"
+                        status: "pending"
+                    requires_confirmation: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /streaming-query:
+    post:
+      summary: Send query with streaming response
+      description: |
+        Submit a query and receive responses via Server-Sent Events (SSE) streaming.
+        Useful for long-running operations or progress updates.
+      operationId: submitStreamingQuery
+      tags:
+        - Conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Streaming response started
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-Sent Events stream
+              examples:
+                streamingResponse:
+                  summary: Streaming model deployment status
+                  value: |
+                    data: {"type":"status","message":"Analyzing your request..."}
+
+                    data: {"type":"status","message":"Creating InferenceService resource..."}
+
+                    data: {"type":"progress","operation":"deploy_model","percent":50}
+
+                    data: {"type":"complete","response":"Model deployed successfully!"}
+
+                    data: [DONE]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sessions:
+    post:
+      summary: Create new conversation session
+      description: Initialize a new conversation session with optional metadata
+      operationId: createSession
+      tags:
+        - Conversation
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                metadata:
+                  type: object
+                  description: Optional session metadata
+                  properties:
+                    user_agent:
+                      type: string
+                    source_interface:
+                      type: string
+                      enum: [web, cli, mobile]
+      responses:
+        '201':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationSession'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      summary: List user's conversation sessions
+      description: Retrieve all active and archived sessions for the authenticated user
+      operationId: listSessions
+      tags:
+        - Conversation
+      parameters:
+        - name: status
+          in: query
+          description: Filter sessions by status
+          schema:
+            type: string
+            enum: [active, archived, expired]
+        - name: limit
+          in: query
+          description: Maximum number of sessions to return
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Number of sessions to skip (pagination)
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: Sessions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConversationSession'
+                  total:
+                    type: integer
+                    description: Total number of sessions matching filters
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sessions/{session_id}:
+    get:
+      summary: Get conversation session details
+      description: Retrieve full conversation history and metadata for a specific session
+      operationId: getSession
+      tags:
+        - Conversation
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationSession'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update conversation session
+      description: Update session status or metadata (e.g., archive conversation)
+      operationId: updateSession
+      tags:
+        - Conversation
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [active, archived]
+                metadata:
+                  type: object
+      responses:
+        '200':
+          description: Session updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sessions/{session_id}/history:
+    get:
+      summary: Get conversation history
+      description: Retrieve message history for a conversation session
+      operationId: getHistory
+      tags:
+        - Conversation
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - name: limit
+          in: query
+          description: Maximum number of messages to return
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        '200':
+          description: History retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /confirm/{operation_id}:
+    post:
+      summary: Confirm pending operation
+      description: |
+        Confirm or reject a pending operation that requires user approval.
+        Used for destructive operations like deleting models or scaling down resources.
+      operationId: confirmOperation
+      tags:
+        - Conversation
+      parameters:
+        - name: operation_id
+          in: path
+          required: true
+          description: Unique identifier of the pending operation
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  enum: [confirm, reject]
+                  description: Whether to proceed with or cancel the operation
+      responses:
+        '200':
+          description: Confirmation processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /readiness:
+    get:
+      summary: Service readiness check
+      description: |
+        Kubernetes readiness probe endpoint. Returns 200 if service is ready
+        to accept traffic (all dependencies healthy).
+      operationId: readinessCheck
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ready]
+                  dependencies:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        enum: [healthy, degraded]
+                      llm_service:
+                        type: string
+                        enum: [healthy, degraded]
+                      openshift_api:
+                        type: string
+                        enum: [healthy, degraded]
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [not_ready]
+                  reason:
+                    type: string
+                  dependencies:
+                    type: object
+
+  /liveness:
+    get:
+      summary: Service liveness check
+      description: Kubernetes liveness probe endpoint. Returns 200 if service is alive.
+      operationId: livenessCheck
+      tags:
+        - Health
+      security: []
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alive:
+                    type: boolean
+                    example: true
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: OpenShift OAuth Bearer token
+
+  parameters:
+    SessionId:
+      name: session_id
+      in: path
+      required: true
+      description: Unique conversation session identifier
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    QueryRequest:
+      type: object
+      required:
+        - query
+      properties:
+        session_id:
+          type: string
+          format: uuid
+          description: |
+            Conversation session ID. If omitted, a new session is created.
+            Required for maintaining context across multiple turns.
+        query:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          description: Natural language query or command
+          example: "Deploy my sentiment-analysis model with 2 replicas"
+
+    QueryResponse:
+      type: object
+      required:
+        - session_id
+        - message_id
+        - response
+      properties:
+        session_id:
+          type: string
+          format: uuid
+          description: Conversation session identifier
+        message_id:
+          type: string
+          format: uuid
+          description: Unique identifier for this response message
+        response:
+          type: string
+          description: Human-readable response from the agent
+        operations_performed:
+          type: array
+          description: List of operations executed (if any)
+          items:
+            $ref: '#/components/schemas/OperationSummary'
+        requires_confirmation:
+          type: boolean
+          description: Whether this response requires user confirmation
+          default: false
+        pending_operation_id:
+          type: string
+          format: uuid
+          description: |
+            Operation ID requiring confirmation (present only if requires_confirmation=true).
+            Use this ID with the /confirm endpoint.
+        clarification_needed:
+          type: boolean
+          description: Whether agent needs additional information from user
+          default: false
+        suggestions:
+          type: array
+          description: Suggested follow-up actions or commands
+          items:
+            type: string
+
+    OperationSummary:
+      type: object
+      required:
+        - operation_type
+        - resource_type
+        - status
+      properties:
+        operation_type:
+          type: string
+          enum: [create, get, list, patch, delete]
+        resource_type:
+          type: string
+          enum: [model_deployment, data_pipeline, notebook, project, model_version]
+        resource_name:
+          type: string
+          description: Name of the resource (null for list operations)
+        namespace:
+          type: string
+          description: OpenShift namespace/project
+        status:
+          type: string
+          enum: [success, failure, partial, pending]
+        error_message:
+          type: string
+          description: Error message if status is failure
+        execution_time_ms:
+          type: integer
+          description: Operation execution time in milliseconds
+
+    ConversationSession:
+      type: object
+      required:
+        - session_id
+        - user_id
+        - created_at
+        - updated_at
+        - status
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          description: OpenShift username
+          pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [active, archived, expired]
+        context_window:
+          type: array
+          description: Recent conversation history (max 20 messages)
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/Message'
+        metadata:
+          type: object
+          description: Optional session metadata
+
+    Message:
+      type: object
+      required:
+        - message_id
+        - role
+        - content
+        - timestamp
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+          maxLength: 10000
+        timestamp:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error context
+        request_id:
+          type: string
+          format: uuid
+          description: Request ID for tracing and support
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "INVALID_REQUEST"
+            message: "Query text exceeds maximum length of 10,000 characters"
+
+    Unauthorized:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "UNAUTHORIZED"
+            message: "Valid OpenShift OAuth token required in Authorization header"
+
+    Forbidden:
+      description: User lacks permission for requested operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "FORBIDDEN"
+            message: "User 'john.doe' does not have permission to delete models in namespace 'production'"
+
+    NotFound:
+      description: Requested resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "NOT_FOUND"
+            message: "Conversation session '550e8400-e29b-41d4-a716-446655440000' not found"
+
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "RATE_LIMITED"
+            message: "Rate limit of 10 requests per minute exceeded. Try again in 45 seconds."
+      headers:
+        Retry-After:
+          description: Seconds until rate limit resets
+          schema:
+            type: integer
+          example: 45
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "INTERNAL_ERROR"
+            message: "An unexpected error occurred. Please try again or contact support."
+            request_id: "7c9e6679-7425-40de-944b-e07fc1f90ae7"

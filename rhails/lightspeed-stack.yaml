@@ -1,0 +1,190 @@
+# Lightspeed Stack Configuration for OpenShift AI Conversational Agent
+# Reference: https://github.com/lightspeed-core/lightspeed-stack/
+
+# LLM Provider Configuration
+providers:
+  inference:
+    - name: "openshift-ai-llm"
+      type: "vllm"
+      # On-cluster vLLM endpoint for Llama 3.3-70B
+      base_url: "${env.VLLM_BASE_URL:-https://llama-inference.openshift-ai.svc.cluster.local:8000}"
+      model: "meta-llama/Llama-3.3-70B-Instruct"
+      # Enable tool calling for agentic operations
+      tool_calling: true
+      # Optional: API key if required
+      # api_key: "${env.VLLM_API_KEY}"
+
+      # Performance tuning
+      timeout: 30
+      max_retries: 3
+
+      # Model parameters
+      temperature: 0.7
+      max_tokens: 2048
+      top_p: 0.95
+
+# Conversation History Storage
+chat_history:
+  # Use PostgreSQL for persistent conversation storage
+  storage_type: "postgresql"
+  connection_string: "${env.DATABASE_URL}"
+
+  # Context window management
+  max_conversation_length: 20  # Max 20 turns (40 messages: user + assistant pairs)
+
+  # Retention policy
+  retention_days: 30
+
+# OpenShift Integration
+openshift:
+  # API endpoint
+  api_url: "${env.OPENSHIFT_API_URL:-https://kubernetes.default.svc}"
+
+  # Authentication
+  auth:
+    # Use service account token for programmatic access
+    type: "service_account"
+    token_path: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    # Alternative: Use OAuth token from environment
+    # type: "oauth"
+    # token: "${env.OPENSHIFT_OAUTH_TOKEN}"
+
+  # TLS verification
+  verify_ssl: true
+  # For development/testing only
+  # verify_ssl: false
+
+# Rate Limiting
+rate_limit:
+  enabled: true
+  requests_per_minute: 10
+  burst_size: 5
+  cleanup_interval: 60  # seconds
+
+# Logging Configuration
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "${env.LOG_LEVEL:-INFO}"
+
+  # Structured JSON logging for production
+  format: "json"
+
+  # Audit logging
+  audit_enabled: true
+  audit_level: "INFO"
+
+# Security
+security:
+  # CORS settings
+  cors:
+    enabled: true
+    allow_origins:
+      - "https://*.openshift.com"
+      - "http://localhost:*"
+    allow_methods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "DELETE"
+    allow_headers:
+      - "Authorization"
+      - "Content-Type"
+
+  # API key authentication (if needed)
+  # api_key_header: "X-API-Key"
+
+# Performance
+performance:
+  # Worker configuration
+  workers: 4
+
+  # Database connection pooling
+  db_pool_size: 20
+  db_pool_max_overflow: 10
+
+  # Request timeout
+  request_timeout: 30
+
+# Data Collection (Optional - for analytics)
+data_collection:
+  enabled: false
+  # Export conversation transcripts for analysis
+  export_path: "/var/log/openshift-ai-agent/conversations"
+  # Red Hat Dataverse integration (if applicable)
+  # dataverse_endpoint: "${env.DATAVERSE_ENDPOINT}"
+
+# Feature Flags
+features:
+  # Enable streaming responses (Server-Sent Events)
+  streaming_enabled: true
+
+  # Enable confirmation flow for destructive operations
+  confirmation_required: true
+
+  # Enable multi-step operation support
+  multi_step_operations: true
+
+  # Enable context-aware suggestions
+  smart_suggestions: true
+
+# Development Settings
+development:
+  # Enable debug mode
+  debug: "${env.DEBUG:-false}"
+
+  # Enable auto-reload
+  reload: "${env.RELOAD:-false}"
+
+  # Detailed error messages
+  show_error_details: "${env.DEBUG:-false}"
+
+# OpenShift AI Specific Settings
+openshift_ai:
+  # Default namespace for operations (if not specified by user)
+  default_namespace: "${env.DEFAULT_NAMESPACE:-default}"
+
+  # KServe settings
+  kserve:
+    # InferenceService API version
+    api_version: "serving.kserve.io/v1beta1"
+
+  # Kubeflow Pipelines settings
+  kfp:
+    # Pipeline API version (v2 for OpenShift AI 2.16+)
+    api_version: "v2"
+
+  # Model Registry settings
+  model_registry:
+    # Model Registry endpoint
+    endpoint: "${env.MODEL_REGISTRY_ENDPOINT}"
+
+# System Prompts (Customizable)
+system_prompts:
+  # Main system prompt for the agent
+  main: |
+    You are an AI assistant that helps users manage OpenShift AI resources through natural language conversation.
+
+    You can help users:
+    - Deploy and manage machine learning models
+    - Configure and monitor data pipelines
+    - Create and manage Jupyter notebook environments
+    - Manage projects, permissions, and resource quotas
+    - Diagnose performance issues and troubleshoot problems
+
+    Always:
+    - Ask clarifying questions when user intent is ambiguous
+    - Provide clear feedback on operation status
+    - Translate technical errors into user-friendly explanations
+    - Confirm destructive operations before executing them
+    - Respect user permissions and RBAC rules
+
+  # Intent parsing prompt
+  intent_parser: |
+    Extract the user's intent from their natural language input.
+    Identify:
+    - Action type (create, read, update, delete, query)
+    - Target resource (model, pipeline, notebook, project)
+    - Parameters (name, replicas, memory, etc.)
+    - Confidence level (0.0 to 1.0)
+
+    If confidence < 0.7, identify specific ambiguities that need clarification.
