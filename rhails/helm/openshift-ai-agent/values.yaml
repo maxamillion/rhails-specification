@@ -1,0 +1,161 @@
+# Default values for openshift-ai-agent
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 2
+
+image:
+  repository: quay.io/openshift-ai/conversational-agent
+  pullPolicy: IfNotPresent
+  tag: "0.1.0"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+
+service:
+  type: ClusterIP
+  port: 8000
+  targetPort: 8000
+
+route:
+  enabled: true
+  host: ""  # Will be auto-generated if empty
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+
+ingress:
+  enabled: false  # Use Route for OpenShift
+  className: ""
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# PostgreSQL database configuration
+database:
+  # Use OpenShift internal PostgreSQL service
+  host: postgresql
+  port: 5432
+  name: openshift_ai_agent
+  # Secret containing database credentials
+  existingSecret: postgresql-credentials
+  secretKeys:
+    username: username
+    password: password
+
+# OAuth configuration for OpenShift authentication
+oauth:
+  # OAuth provider URL (usually OpenShift OAuth server)
+  providerUrl: https://oauth-openshift.apps.cluster.example.com
+  clientId: openshift-ai-agent
+  # Secret containing OAuth client secret
+  existingSecret: oauth-credentials
+  secretKey: client-secret
+
+# OpenShift AI configuration
+openshiftAI:
+  # OpenShift AI API endpoint
+  apiUrl: https://api.openshift.com
+  # Namespace where OpenShift AI resources are managed
+  namespace: openshift-ai
+  # Use service account token for authentication
+  useServiceAccount: true
+
+# LLM configuration
+llm:
+  provider: openai  # or azure, anthropic
+  model: gpt-4
+  # Secret containing LLM API credentials
+  existingSecret: llm-credentials
+  secretKey: api-key
+  # Optional: Azure OpenAI specific config
+  azure:
+    endpoint: ""
+    deploymentName: ""
+
+# Application configuration
+app:
+  logLevel: INFO
+  environment: production
+  # Session timeout in seconds (30 days)
+  sessionTimeout: 2592000
+  # Maximum conversation turns per session
+  maxConversationTurns: 20
+  # Rate limiting
+  rateLimit:
+    enabled: true
+    requestsPerMinute: 60
+
+# Health check configuration
+health:
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 20
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity rules
+affinity: {}
+
+# Persistent volume for logs (optional)
+persistence:
+  enabled: false
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi

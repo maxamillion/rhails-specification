@@ -1,0 +1,179 @@
+[project]
+name = "openshift-ai-agent"
+version = "0.1.0"
+description = "OpenShift AI Conversational Agent built on Lightspeed Core lightspeed-stack framework"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "OpenShift AI Agent Team"}
+]
+keywords = ["openshift", "ai", "conversational-agent", "llm", "lightspeed"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    # OpenShift AI client libraries
+    "openshift>=0.13.0",
+    "kserve>=0.14.0,<0.16.0",  # Use kserve 0.14-0.15 for compatibility
+    "kfp>=2.8.0,<2.14",  # Use kfp versions compatible with protobuf <5
+    "model-registry>=0.2.0",
+
+    # Web framework and ASGI server
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0,<0.31.0",  # Match kserve requirement
+    "python-multipart>=0.0.6",
+
+    # Database and ORM
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.9",
+
+    # Data validation and serialization
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+
+    # Authentication and security
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+
+    # HTTP client
+    "httpx>=0.26.0",
+
+    # Logging and monitoring
+    "structlog>=24.1.0",
+
+    # Configuration management
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Testing
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "httpx>=0.26.0",
+
+    # Code quality
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+    "black>=24.1.0",
+
+    # Type stubs
+    "types-pyyaml>=6.0.12",
+    "types-requests>=2.31.0",
+]
+
+[project.scripts]
+openshift-ai-agent = "src.cli.agent_cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --cov=src --cov-report=term-missing --cov-report=html --cov-fail-under=80"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]  # imported but unused
+"tests/*" = ["F401", "F811"]  # test fixtures
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "lightspeed_stack.*",
+    "kserve.*",
+    "kfp.*",
+    "model_registry.*",
+]
+ignore_missing_imports = true
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | __pycache__
+  | build
+  | dist
+)/
+'''
+
+[dependency-groups]
+dev = [
+    "aiosqlite>=0.22.1",
+]

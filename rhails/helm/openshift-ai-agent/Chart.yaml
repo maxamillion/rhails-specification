@@ -1,0 +1,17 @@
+apiVersion: v2
+name: openshift-ai-agent
+description: Conversational AI agent for OpenShift AI platform management
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - openshift
+  - ai
+  - machine-learning
+  - conversational-ai
+  - chatbot
+maintainers:
+  - name: OpenShift AI Team
+    email: noreply@redhat.com
+sources:
+  - https://github.com/redhat/openshift-ai-agent

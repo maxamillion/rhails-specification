@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openshift-ai-agent.fullname" . }}
+  labels:
+    {{- include "openshift-ai-agent.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "openshift-ai-agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "openshift-ai-agent.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "openshift-ai-agent.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: {{ .Chart.Name }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.targetPort }}
+          protocol: TCP
+        env:
+        - name: DATABASE_URL
+          value: {{ include "openshift-ai-agent.databaseUrl" . | quote }}
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.database.existingSecret }}
+              key: {{ .Values.database.secretKeys.username }}
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.database.existingSecret }}
+              key: {{ .Values.database.secretKeys.password }}
+        - name: OAUTH_PROVIDER_URL
+          value: {{ .Values.oauth.providerUrl | quote }}
+        - name: OAUTH_CLIENT_ID
+          value: {{ .Values.oauth.clientId | quote }}
+        - name: OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.oauth.existingSecret }}
+              key: {{ .Values.oauth.secretKey }}
+        - name: OPENSHIFT_AI_API_URL
+          value: {{ .Values.openshiftAI.apiUrl | quote }}
+        - name: OPENSHIFT_AI_NAMESPACE
+          value: {{ .Values.openshiftAI.namespace | quote }}
+        - name: LLM_PROVIDER
+          value: {{ .Values.llm.provider | quote }}
+        - name: LLM_MODEL
+          value: {{ .Values.llm.model | quote }}
+        - name: LLM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.llm.existingSecret }}
+              key: {{ .Values.llm.secretKey }}
+        {{- if eq .Values.llm.provider "azure" }}
+        - name: AZURE_OPENAI_ENDPOINT
+          value: {{ .Values.llm.azure.endpoint | quote }}
+        - name: AZURE_OPENAI_DEPLOYMENT
+          value: {{ .Values.llm.azure.deploymentName | quote }}
+        {{- end }}
+        - name: LOG_LEVEL
+          value: {{ .Values.app.logLevel | quote }}
+        - name: ENVIRONMENT
+          value: {{ .Values.app.environment | quote }}
+        - name: SESSION_TIMEOUT
+          value: {{ .Values.app.sessionTimeout | quote }}
+        - name: MAX_CONVERSATION_TURNS
+          value: {{ .Values.app.maxConversationTurns | quote }}
+        - name: RATE_LIMIT_ENABLED
+          value: {{ .Values.app.rateLimit.enabled | quote }}
+        - name: RATE_LIMIT_REQUESTS_PER_MINUTE
+          value: {{ .Values.app.rateLimit.requestsPerMinute | quote }}
+        {{- if .Values.health.livenessProbe.enabled }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: {{ .Values.health.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.health.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.health.livenessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.health.livenessProbe.failureThreshold }}
+        {{- end }}
+        {{- if .Values.health.readinessProbe.enabled }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: {{ .Values.health.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.health.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.health.readinessProbe.timeoutSeconds }}
+          failureThreshold: {{ .Values.health.readinessProbe.failureThreshold }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+        {{- if .Values.persistence.enabled }}
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+      - name: logs
+        persistentVolumeClaim:
+          claimName: {{ include "openshift-ai-agent.fullname" . }}-logs
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

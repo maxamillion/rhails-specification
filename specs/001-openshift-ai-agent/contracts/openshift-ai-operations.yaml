@@ -1,0 +1,550 @@
+openapi: 3.0.3
+info:
+  title: OpenShift AI Operations Supported by Conversational Agent
+  description: |
+    This document defines the OpenShift AI operations supported by the conversational agent.
+
+    **Note**: This is NOT a REST API specification. It documents which OpenShift AI operations
+    the agent can perform via the Kubernetes API when users issue natural language commands.
+  version: 1.0.0
+
+components:
+  schemas:
+    SupportedOperation:
+      type: object
+      required:
+        - operation_name
+        - natural_language_examples
+        - kubernetes_operation
+        - requires_confirmation
+      properties:
+        operation_name:
+          type: string
+          description: Canonical name for this operation
+        category:
+          type: string
+          enum: [model_management, pipeline_management, notebook_management, project_management, monitoring]
+        natural_language_examples:
+          type: array
+          description: Example user queries that map to this operation
+          items:
+            type: string
+        kubernetes_operation:
+          $ref: '#/components/schemas/KubernetesOperation'
+        requires_confirmation:
+          type: boolean
+          description: Whether this operation requires user confirmation before execution
+        user_story:
+          type: string
+          description: Which user story (P1-P5) this operation supports
+
+    KubernetesOperation:
+      type: object
+      required:
+        - operation_type
+        - api_group
+        - api_version
+        - resource_plural
+      properties:
+        operation_type:
+          type: string
+          enum: [create, get, list, patch, delete]
+        api_group:
+          type: string
+          description: Kubernetes API group
+        api_version:
+          type: string
+          description: API version
+        resource_plural:
+          type: string
+          description: Plural resource name
+        namespace_scoped:
+          type: boolean
+          description: Whether resource is namespace-scoped (vs cluster-scoped)
+          default: true
+
+# Supported Operations by Category
+
+model_management_operations:
+  description: "User Story 1 (P1): Model Management via Chat"
+  operations:
+    deploy_model:
+      operation_name: "deploy_model"
+      category: "model_management"
+      natural_language_examples:
+        - "Deploy my fraud-detection model with 3 replicas"
+        - "Create an inference service for sentiment-analysis"
+        - "Deploy the customer-churn-model to production namespace"
+      kubernetes_operation:
+        operation_type: "create"
+        api_group: "serving.kserve.io"
+        api_version: "v1beta1"
+        resource_plural: "inferenceservices"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P1"
+
+    get_model_status:
+      operation_name: "get_model_status"
+      category: "model_management"
+      natural_language_examples:
+        - "What's the status of my recommendation-engine?"
+        - "Is fraud-detection running?"
+        - "Show me the sentiment-analyzer deployment"
+      kubernetes_operation:
+        operation_type: "get"
+        api_group: "serving.kserve.io"
+        api_version: "v1beta1"
+        resource_plural: "inferenceservices"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P1"
+
+    list_models:
+      operation_name: "list_models"
+      category: "model_management"
+      natural_language_examples:
+        - "Show me all my deployed models"
+        - "List inference services in the data-science project"
+        - "What models are running?"
+      kubernetes_operation:
+        operation_type: "list"
+        api_group: "serving.kserve.io"
+        api_version: "v1beta1"
+        resource_plural: "inferenceservices"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P1"
+
+    scale_model:
+      operation_name: "scale_model"
+      category: "model_management"
+      natural_language_examples:
+        - "Scale recommendation-engine to 5 replicas"
+        - "Increase fraud-detector replicas to 10"
+        - "Scale down sentiment-analysis to 2 replicas"
+      kubernetes_operation:
+        operation_type: "patch"
+        api_group: "serving.kserve.io"
+        api_version: "v1beta1"
+        resource_plural: "inferenceservices"
+        namespace_scoped: true
+      requires_confirmation: true
+      user_story: "P1"
+
+    delete_model:
+      operation_name: "delete_model"
+      category: "model_management"
+      natural_language_examples:
+        - "Delete the old recommendation-model"
+        - "Remove fraud-detector inference service"
+        - "Shut down sentiment-analyzer"
+      kubernetes_operation:
+        operation_type: "delete"
+        api_group: "serving.kserve.io"
+        api_version: "v1beta1"
+        resource_plural: "inferenceservices"
+        namespace_scoped: true
+      requires_confirmation: true
+      user_story: "P1"
+
+    get_model_metrics:
+      operation_name: "get_model_metrics"
+      category: "model_management"
+      natural_language_examples:
+        - "Show me the performance metrics for sentiment-analyzer"
+        - "What's the latency of fraud-detector?"
+        - "Get metrics for recommendation-engine"
+      kubernetes_operation:
+        operation_type: "get"
+        api_group: "serving.kserve.io"
+        api_version: "v1beta1"
+        resource_plural: "inferenceservices"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P1"
+      note: "Metrics retrieved from InferenceService status field and Prometheus (if available)"
+
+pipeline_management_operations:
+  description: "User Story 2 (P2): Data Pipeline Configuration"
+  operations:
+    create_pipeline:
+      operation_name: "create_pipeline"
+      category: "pipeline_management"
+      natural_language_examples:
+        - "Create a pipeline to load transaction data from our data lake"
+        - "Set up an ETL pipeline for customer reviews"
+        - "Build a data preprocessing pipeline for fraud detection"
+      kubernetes_operation:
+        operation_type: "create"
+        api_group: "kubeflow.org"
+        api_version: "v1"
+        resource_plural: "pipelines"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P2"
+      note: "Uses Kubeflow Pipelines v2 API (OpenShift AI 2.16+)"
+
+    get_pipeline_status:
+      operation_name: "get_pipeline_status"
+      category: "pipeline_management"
+      natural_language_examples:
+        - "Is my customer-segmentation pipeline running?"
+        - "What's the status of data-prep pipeline?"
+        - "Check ETL pipeline execution"
+      kubernetes_operation:
+        operation_type: "get"
+        api_group: "kubeflow.org"
+        api_version: "v1"
+        resource_plural: "pipelineruns"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P2"
+
+    list_pipelines:
+      operation_name: "list_pipelines"
+      category: "pipeline_management"
+      natural_language_examples:
+        - "Show me all my pipelines"
+        - "List data pipelines in the analytics project"
+        - "What pipelines do I have?"
+      kubernetes_operation:
+        operation_type: "list"
+        api_group: "kubeflow.org"
+        api_version: "v1"
+        resource_plural: "pipelines"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P2"
+
+    update_pipeline_schedule:
+      operation_name: "update_pipeline_schedule"
+      category: "pipeline_management"
+      natural_language_examples:
+        - "Update my ETL pipeline to run every 6 hours instead of daily"
+        - "Change customer-segmentation schedule to hourly"
+        - "Set data-prep pipeline to run at 2am daily"
+      kubernetes_operation:
+        operation_type: "patch"
+        api_group: "kubeflow.org"
+        api_version: "v1"
+        resource_plural: "pipelines"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P2"
+
+    get_pipeline_runs:
+      operation_name: "get_pipeline_runs"
+      category: "pipeline_management"
+      natural_language_examples:
+        - "Show me the last 5 runs of my data-prep pipeline"
+        - "Get execution history for ETL pipeline"
+        - "What were the recent runs of customer-segmentation?"
+      kubernetes_operation:
+        operation_type: "list"
+        api_group: "kubeflow.org"
+        api_version: "v1"
+        resource_plural: "pipelineruns"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P2"
+
+notebook_management_operations:
+  description: "User Story 3 (P3): Notebook Environment Management"
+  operations:
+    create_notebook:
+      operation_name: "create_notebook"
+      category: "notebook_management"
+      natural_language_examples:
+        - "Create a notebook with PyTorch, 8GB memory, and GPU access"
+        - "Set up a Python environment with TensorFlow and 4GB RAM"
+        - "Create a data science workbench with scikit-learn"
+      kubernetes_operation:
+        operation_type: "create"
+        api_group: "kubeflow.org"
+        api_version: "v1"
+        resource_plural: "notebooks"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P3"
+
+    list_notebooks:
+      operation_name: "list_notebooks"
+      category: "notebook_management"
+      natural_language_examples:
+        - "What notebooks do I have running?"
+        - "List all my workbenches"
+        - "Show me active notebook environments"
+      kubernetes_operation:
+        operation_type: "list"
+        api_group: "kubeflow.org"
+        api_version: "v1"
+        resource_plural: "notebooks"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P3"
+
+    stop_notebook:
+      operation_name: "stop_notebook"
+      category: "notebook_management"
+      natural_language_examples:
+        - "Stop my experiment-notebook from last week"
+        - "Shut down the pytorch-workbench"
+        - "Stop neural-network-training notebook"
+      kubernetes_operation:
+        operation_type: "patch"
+        api_group: "kubeflow.org"
+        api_version: "v1"
+        resource_plural: "notebooks"
+        namespace_scoped: true
+      requires_confirmation: true
+      user_story: "P3"
+      note: "Sets replicas to 0 to stop the notebook server"
+
+    start_notebook:
+      operation_name: "start_notebook"
+      category: "notebook_management"
+      natural_language_examples:
+        - "Start my neural-network-training notebook"
+        - "Resume pytorch-workbench"
+        - "Launch experiment-notebook"
+      kubernetes_operation:
+        operation_type: "patch"
+        api_group: "kubeflow.org"
+        api_version: "v1"
+        resource_plural: "notebooks"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P3"
+      note: "Sets replicas to 1 to start the notebook server"
+
+    delete_notebook:
+      operation_name: "delete_notebook"
+      category: "notebook_management"
+      natural_language_examples:
+        - "Delete old-experiment notebook"
+        - "Remove unused pytorch-workbench"
+        - "Clean up test-notebook"
+      kubernetes_operation:
+        operation_type: "delete"
+        api_group: "kubeflow.org"
+        api_version: "v1"
+        resource_plural: "notebooks"
+        namespace_scoped: true
+      requires_confirmation: true
+      user_story: "P3"
+
+project_management_operations:
+  description: "User Story 4 (P4): Project and Resource Management"
+  operations:
+    create_project:
+      operation_name: "create_project"
+      category: "project_management"
+      natural_language_examples:
+        - "Create a project for the recommendation-systems team with 64GB memory"
+        - "Set up fraud-detection-team project with 16 CPU limit"
+        - "Create analytics namespace with 32GB quota"
+      kubernetes_operation:
+        operation_type: "create"
+        api_group: ""
+        api_version: "v1"
+        resource_plural: "namespaces"
+        namespace_scoped: false
+      requires_confirmation: false
+      user_story: "P4"
+      note: "Also creates ResourceQuota and LimitRange objects in the namespace"
+
+    list_projects:
+      operation_name: "list_projects"
+      category: "project_management"
+      natural_language_examples:
+        - "What projects do I have access to?"
+        - "List all my OpenShift AI projects"
+        - "Show me available namespaces"
+      kubernetes_operation:
+        operation_type: "list"
+        api_group: ""
+        api_version: "v1"
+        resource_plural: "namespaces"
+        namespace_scoped: false
+      requires_confirmation: false
+      user_story: "P4"
+
+    get_project_resources:
+      operation_name: "get_project_resources"
+      category: "project_management"
+      natural_language_examples:
+        - "How much memory is the fraud-detection project using?"
+        - "Show me resource consumption for analytics project"
+        - "What's the quota usage in customer-data namespace?"
+      kubernetes_operation:
+        operation_type: "get"
+        api_group: ""
+        api_version: "v1"
+        resource_plural: "resourcequotas"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P4"
+
+    add_user_to_project:
+      operation_name: "add_user_to_project"
+      category: "project_management"
+      natural_language_examples:
+        - "Add user jane.doe@company.com to customer-analytics project as contributor"
+        - "Grant john.smith edit access to fraud-detection namespace"
+        - "Give mary.jones admin role in data-science project"
+      kubernetes_operation:
+        operation_type: "create"
+        api_group: "rbac.authorization.k8s.io"
+        api_version: "v1"
+        resource_plural: "rolebindings"
+        namespace_scoped: true
+      requires_confirmation: true
+      user_story: "P4"
+      note: "Creates RoleBinding with appropriate role (view, edit, admin)"
+
+monitoring_operations:
+  description: "User Story 5 (P5): Model Monitoring and Troubleshooting"
+  operations:
+    analyze_model_logs:
+      operation_name: "analyze_model_logs"
+      category: "monitoring"
+      natural_language_examples:
+        - "Why is my fraud-detector failing requests?"
+        - "Show me errors from sentiment-model"
+        - "Analyze logs for recommendation-engine failures"
+      kubernetes_operation:
+        operation_type: "get"
+        api_group: ""
+        api_version: "v1"
+        resource_plural: "pods"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P5"
+      note: "Retrieves pod logs and uses LLM to analyze error patterns"
+
+    compare_model_metrics:
+      operation_name: "compare_model_metrics"
+      category: "monitoring"
+      natural_language_examples:
+        - "Compare performance of my model today versus last week"
+        - "Show me latency trends for fraud-detector"
+        - "Compare recommendation-engine metrics before and after scaling"
+      kubernetes_operation:
+        operation_type: "get"
+        api_group: "serving.kserve.io"
+        api_version: "v1beta1"
+        resource_plural: "inferenceservices"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P5"
+      note: "Retrieves metrics from InferenceService status and Prometheus"
+
+    diagnose_performance:
+      operation_name: "diagnose_performance"
+      category: "monitoring"
+      natural_language_examples:
+        - "Is my recommendation-engine CPU-bound?"
+        - "Why is sentiment-model slow?"
+        - "Diagnose latency issues in fraud-detector"
+      kubernetes_operation:
+        operation_type: "get"
+        api_group: ""
+        api_version: "v1"
+        resource_plural: "pods"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P5"
+      note: "Analyzes pod resource usage, metrics, and LLM reasoning to identify bottlenecks"
+
+    get_prediction_distribution:
+      operation_name: "get_prediction_distribution"
+      category: "monitoring"
+      natural_language_examples:
+        - "Show me prediction distribution for customer-churn model over the last month"
+        - "Analyze output stats for sentiment-analyzer"
+        - "Check for model drift in fraud-detector"
+      kubernetes_operation:
+        operation_type: "get"
+        api_group: "serving.kserve.io"
+        api_version: "v1beta1"
+        resource_plural: "inferenceservices"
+        namespace_scoped: true
+      requires_confirmation: false
+      user_story: "P5"
+      note: "Requires model serving instrumentation to capture prediction logs"
+
+# Operation Metadata
+
+operation_metadata:
+  total_operations: 25
+  user_story_coverage:
+    P1_model_management: 6
+    P2_pipeline_management: 5
+    P3_notebook_management: 5
+    P4_project_management: 4
+    P5_monitoring: 4
+
+  confirmation_required_operations:
+    - scale_model
+    - delete_model
+    - stop_notebook
+    - delete_notebook
+    - add_user_to_project
+
+  async_operations:
+    - deploy_model (model deployment takes 2-5 minutes)
+    - create_pipeline (pipeline creation may take 30-60 seconds)
+    - create_notebook (workbench provisioning takes 1-2 minutes)
+
+  rbac_requirements:
+    all_operations: |
+      User must have appropriate RBAC permissions in target namespace.
+      Agent uses service account token but respects user's permissions via
+      impersonation or permission checking before executing operations.
+
+    admin_required:
+      - create_project
+      - add_user_to_project
+
+    edit_required:
+      - deploy_model
+      - create_pipeline
+      - create_notebook
+      - scale_model
+      - update_pipeline_schedule
+
+    view_sufficient:
+      - get_model_status
+      - list_models
+      - get_pipeline_status
+      - list_pipelines
+      - list_notebooks
+      - get_project_resources
+
+# Error Handling
+
+error_codes:
+  RESOURCE_NOT_FOUND:
+    description: "Requested OpenShift AI resource does not exist"
+    user_message: "I couldn't find a {resource_type} named '{resource_name}' in the {namespace} project. Would you like to see all available {resource_type}s?"
+
+  PERMISSION_DENIED:
+    description: "User lacks RBAC permission for requested operation"
+    user_message: "You don't have permission to {operation} {resource_type}s in the {namespace} project. You can ask your project administrator to grant you '{required_role}' role."
+
+  QUOTA_EXCEEDED:
+    description: "Operation would exceed namespace resource quota"
+    user_message: "Creating this {resource_type} would exceed your project's {resource} quota ({current_usage}/{quota_limit}). Consider scaling down other resources or requesting a quota increase."
+
+  AMBIGUOUS_RESOURCE:
+    description: "Multiple resources match user's description"
+    user_message: "I found {count} {resource_type}s matching '{user_input}': {resource_list}. Which one did you mean?"
+
+  API_ERROR:
+    description: "OpenShift API returned an error"
+    user_message: "I encountered an error from OpenShift AI: {error_message}. {suggested_action}"
+
+  INVALID_OPERATION:
+    description: "User requested operation is not valid for resource state"
+    user_message: "I can't {operation} {resource_name} because {reason}. {suggested_alternative}"
